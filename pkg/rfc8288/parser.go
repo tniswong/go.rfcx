@@ -99,7 +99,7 @@ func (p *Parser) Parse() (Link, error) {
 		case TYPE:
 			result.Type = value
 		case WORD:
-		    result.Extend(key, value)
+			result.Extend(key, value)
 		case EOF:
 			return result, nil
 		default:

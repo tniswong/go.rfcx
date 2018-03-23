@@ -1,11 +1,10 @@
 package rfc8288_test
 
 import (
-	. "github.com/tniswong/go.rfcx/pkg/rfc8288"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+	. "github.com/tniswong/go.rfcx/pkg/rfc8288"
 	"io"
 	"strings"
 )

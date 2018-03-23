@@ -11,7 +11,7 @@ import (
 var _ = Describe("Parser", func() {
 
 	DescribeTable(
-	    "Valid Cases",
+		"Valid Cases",
 		func(in string, out Link) {
 
 			// given
@@ -97,25 +97,25 @@ var _ = Describe("Parser", func() {
 
 	Describe("Parse", func() {
 
-	    It("should parse extensions", func() {
+		It("should parse extensions", func() {
 
-            // given
-            l := `<https://www.google.com>; extension="value"`
-            parser := NewParser(strings.NewReader(l))
+			// given
+			l := `<https://www.google.com>; extension="value"`
+			parser := NewParser(strings.NewReader(l))
 
-            // when
-            w, err := parser.Parse()
+			// when
+			w, err := parser.Parse()
 
-            // then
-            Expect(err).To(BeNil())
+			// then
+			Expect(err).To(BeNil())
 
-            value, present := w.Extension("extension")
-            Expect(len(w.Extensions())).To(Equal(1))
-            Expect(present).To(BeTrue())
-            Expect(value).To(Equal("value"))
+			value, present := w.Extension("extension")
+			Expect(len(w.Extensions())).To(Equal(1))
+			Expect(present).To(BeTrue())
+			Expect(value).To(Equal("value"))
 
-        })
+		})
 
-    })
+	})
 
 })

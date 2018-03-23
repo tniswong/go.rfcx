@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	. "github.com/tniswong/go.rfcx/pkg/rfc7807"
-    "net/url"
+	"net/url"
 )
 
 var _ = Describe("Rfc7807", func() {

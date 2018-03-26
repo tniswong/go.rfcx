@@ -5,23 +5,18 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	. "github.com/tniswong/go.rfcx/pkg/rfc8288"
-	"strings"
 )
 
-var _ = Describe("Parser", func() {
+var _ = Describe("parser", func() {
 
 	DescribeTable(
 		"Valid Cases",
 		func(in string, out Link) {
 
 			// given
-			r := strings.NewReader(in)
-			p := NewParser(r)
+			result, err := ParseLink(in)
 
-			// when
-			result, err := p.Parse()
-
-			// then
+			// expect
 			Expect(err).To(BeNil())
 			Expect(out.HREF).To(Equal(result.HREF))
 
@@ -101,10 +96,9 @@ var _ = Describe("Parser", func() {
 
 			// given
 			l := `<https://www.google.com>; extension="value"`
-			parser := NewParser(strings.NewReader(l))
 
 			// when
-			w, err := parser.Parse()
+			w, err := ParseLink(l)
 
 			// then
 			Expect(err).To(BeNil())

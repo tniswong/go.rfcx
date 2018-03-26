@@ -2,7 +2,6 @@ package rfc8288_test
 
 import (
 	"encoding/json"
-	"fmt"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
@@ -121,7 +120,6 @@ var _ = Describe("Rfc8288", func() {
 
 			// given
 			jsonBytes, err := json.Marshal(in)
-			fmt.Println(string(jsonBytes))
 			result := make(map[string]interface{})
 
 			Expect(err).To(BeNil())

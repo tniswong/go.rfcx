@@ -1,18 +1,17 @@
-package rfc8288_test
+package rfc8288
 
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
-	. "github.com/tniswong/go.rfcx/pkg/rfc8288"
 	"io"
 	"strings"
 )
 
-var _ = Describe("Scanner", func() {
+var _ = Describe("scanner", func() {
 
 	type TokenLiteral struct {
-		Token   Token
+		Token   token
 		Literal string
 		Err     error
 	}
@@ -22,7 +21,7 @@ var _ = Describe("Scanner", func() {
 
 			// given
 			r := strings.NewReader(in)
-			s := NewScanner(r)
+			s := newScanner(r)
 
 			for _, t := range out {
 

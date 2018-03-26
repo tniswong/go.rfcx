@@ -9,17 +9,26 @@ import (
 	"strings"
 )
 
-var ErrExtensionKeyIsReserved = errors.New("rfc8288: the given extension key name is reserved please choose another name")
+var (
+	// ErrExtensionKeyIsReserved is thrown when attempting to call .Extend(k,v) on a Link with a reserved key name
+	ErrExtensionKeyIsReserved = errors.New("rfc8288: the given extension key name is reserved please choose another name")
 
-var reservedKeys = map[string]struct{}{
-	"rel":      {},
-	"hreflang": {},
-	"media":    {},
-	"title":    {},
-	"title*":   {},
-	"type":     {},
+	reservedKeys = map[string]struct{}{
+		"rel":      {},
+		"hreflang": {},
+		"media":    {},
+		"title":    {},
+		"title*":   {},
+		"type":     {},
+	}
+)
+
+// ParseLink attempts to parse a link string
+func ParseLink(link string) (Link, error) {
+	return newParser(strings.NewReader(link)).Parse()
 }
 
+// Link is an implementation of the structure defined by RFC8288 Web Linking
 type Link struct {
 	HREF       url.URL
 	Rel        string
@@ -31,6 +40,7 @@ type Link struct {
 	extensions map[string]interface{}
 }
 
+// String returns the Link in a format usable for HTTP Headers as defined by RFC8288
 func (w Link) String() string {
 
 	var result []string
@@ -69,6 +79,7 @@ func (w Link) String() string {
 
 }
 
+// Extensions returns a slice of strings representing the names of extension keys for this Link struct
 func (w Link) Extensions() []string {
 
 	extensions := make([]string, len(w.extensions))
@@ -83,11 +94,14 @@ func (w Link) Extensions() []string {
 
 }
 
+// Extension retrieves the value for an extension if present. A bool is also returned to signify whether the value was
+// present upon retrieval
 func (w Link) Extension(key string) (interface{}, bool) {
 	val, ok := w.extensions[key]
 	return val, ok
 }
 
+// Extend adds an extension to the Link. Only non-reserved extension keys are allowed
 func (w *Link) Extend(key string, value interface{}) error {
 
 	if _, reserved := reservedKeys[strings.ToLower(key)]; reserved {
@@ -104,6 +118,7 @@ func (w *Link) Extend(key string, value interface{}) error {
 
 }
 
+// MarshalJSON Marshals JSON
 func (w Link) MarshalJSON() ([]byte, error) {
 
 	out := map[string]interface{}{}
@@ -145,6 +160,7 @@ func (w Link) MarshalJSON() ([]byte, error) {
 
 }
 
+// UnmarshalJSON unmarshalls JSON
 func (w *Link) UnmarshalJSON(data []byte) error {
 
 	in := map[string]interface{}{}

@@ -7,11 +7,12 @@ import (
 	"unicode"
 )
 
-// Token is an enum type to represent known lexer tokens for RFC8288
-type Token int
+// token is an enum type to represent known lexer tokens for RFC8288
+type token int
 
+// token types
 const (
-	INVALID Token = iota
+	INVALID token = iota
 
 	// delimiters
 	QUOTE
@@ -36,18 +37,18 @@ const (
 	TYPE
 )
 
-// Scanner is a lexer for rfc8288
-type Scanner struct {
+// scanner is a lexer for rfc8288
+type scanner struct {
 	reader   bufio.Reader
-	lastRead Token
+	lastRead token
 
 	quoteOpen   bool
 	bracketOpen bool
 }
 
-// NewScanner
-func NewScanner(reader io.Reader) Scanner {
-	return Scanner{reader: *bufio.NewReader(reader)}
+// newScanner is a constructor for scanner structs
+func newScanner(reader io.Reader) scanner {
+	return scanner{reader: *bufio.NewReader(reader)}
 }
 
 // isWhitespace returns true if rune a unicode whitespace character
@@ -66,18 +67,18 @@ func isStar(r rune) bool {
 }
 
 // read the next rune from the buffered reader (io.EOF is returned as error on attempting to read EOF)
-func (s *Scanner) read() (rune, error) {
+func (s *scanner) read() (rune, error) {
 	r, _, err := s.reader.ReadRune()
 	return r, err
 }
 
 // unread the last rune from the reader
-func (s *Scanner) unread() error {
+func (s *scanner) unread() error {
 	return s.reader.UnreadRune()
 }
 
 // Scan returns the next token and literal, or error
-func (s *Scanner) Scan() (token Token, literal string, err error) {
+func (s *scanner) Scan() (token token, literal string, err error) {
 
 	// read
 	if r, err := s.read(); err != nil { // eof
@@ -131,7 +132,7 @@ func (s *Scanner) Scan() (token Token, literal string, err error) {
 }
 
 // scanWhitespace scans for contiguous whitespace
-func (s *Scanner) scanWhitespace() (token Token, literal string, err error) {
+func (s *scanner) scanWhitespace() (token token, literal string, err error) {
 
 	// buf is a place to store the contiguous whitespace
 	var buf bytes.Buffer
@@ -170,7 +171,7 @@ func (s *Scanner) scanWhitespace() (token Token, literal string, err error) {
 }
 
 // scanWord scans for continuous word runes
-func (s *Scanner) scanWord() (token Token, literal string, err error) {
+func (s *scanner) scanWord() (token token, literal string, err error) {
 
 	// buf is a place to store the contiguous word runes
 	var buf bytes.Buffer
@@ -235,7 +236,7 @@ func (s *Scanner) scanWord() (token Token, literal string, err error) {
 }
 
 // scanned tells the scanner what we've just scanned. the error parameter is passthrough as a convenience
-func (s *Scanner) scanned(t Token, literal string, err error) (Token, string, error) {
+func (s *scanner) scanned(t token, literal string, err error) (token, string, error) {
 	s.lastRead = t
 	return t, literal, err
 }

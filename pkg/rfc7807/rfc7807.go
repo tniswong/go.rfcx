@@ -9,9 +9,11 @@ import (
 )
 
 const (
+	// JSONMediaType is the MIME Media type for the Problem struct
 	JSONMediaType = "application/problem+json"
 )
 
+// ErrExtensionKeyIsReserved is thrown when attempting to call .Extend(k,v) on a problem with a reserved key name
 var ErrExtensionKeyIsReserved = errors.New("rfc7807: the given extension key name is reserved please choose another name")
 
 var reservedKeys = map[string]struct{}{
@@ -22,6 +24,7 @@ var reservedKeys = map[string]struct{}{
 	"instance": {},
 }
 
+// Problem is a struct representing Problem Details as descrbed in rfc7807
 type Problem struct {
 	Type       string
 	Title      string
@@ -31,6 +34,7 @@ type Problem struct {
 	extensions map[string]interface{}
 }
 
+// Extensions returns a slice of strings representing the names of extension keys for this Problem struct
 func (p Problem) Extensions() []string {
 
 	extensions := make([]string, len(p.extensions))
@@ -45,11 +49,14 @@ func (p Problem) Extensions() []string {
 
 }
 
+// Extension retrieves the value for an extension if present. A bool is also returned to signify whether the value was
+// present upon retrieval
 func (p Problem) Extension(key string) (interface{}, bool) {
 	val, ok := p.extensions[key]
 	return val, ok
 }
 
+// Extend adds an extension to the Problem. Only non-reserved extension keys are allowed
 func (p *Problem) Extend(key string, value interface{}) error {
 
 	if _, reserved := reservedKeys[strings.ToLower(key)]; reserved {
@@ -66,6 +73,7 @@ func (p *Problem) Extend(key string, value interface{}) error {
 
 }
 
+// MarshalJSON Marshals JSON
 func (p Problem) MarshalJSON() ([]byte, error) {
 
 	out := map[string]interface{}{}
@@ -99,6 +107,7 @@ func (p Problem) MarshalJSON() ([]byte, error) {
 
 }
 
+// UnmarshalJSON unmarshalls JSON
 func (p *Problem) UnmarshalJSON(data []byte) error {
 
 	in := map[string]interface{}{}

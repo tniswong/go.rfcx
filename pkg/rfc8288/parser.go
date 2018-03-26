@@ -6,6 +6,7 @@ import (
 	"net/url"
 )
 
+// Parse Error Types
 var (
 	ErrInvalidLink         = errors.New("[ERR] invalid link")
 	ErrMissingSemicolon    = errors.New("[ERR] invalid link: missing semicolon")
@@ -13,24 +14,24 @@ var (
 	ErrMissingAttrValue    = errors.New("[ERR] invalid link: missing attribute value")
 )
 
-type Parser struct {
-	scanner Scanner
+type parser struct {
+	scanner scanner
 	buffer  struct {
-		token     Token
+		token     token
 		literal   string
 		unscanned bool
 	}
 }
 
-func NewParser(reader io.Reader) Parser {
-	return Parser{scanner: NewScanner(reader)}
+func newParser(reader io.Reader) parser {
+	return parser{scanner: newScanner(reader)}
 }
 
-func (p *Parser) unscan() {
+func (p *parser) unscan() {
 	p.buffer.unscanned = true
 }
 
-func (p *Parser) scan() (Token, string, error) {
+func (p *parser) scan() (token, string, error) {
 
 	if p.buffer.unscanned {
 
@@ -47,7 +48,7 @@ func (p *Parser) scan() (Token, string, error) {
 	return token, literal, err
 }
 
-func (p *Parser) scanIgnoreWhitespace() (Token, string, error) {
+func (p *parser) scanIgnoreWhitespace() (token, string, error) {
 
 	token, literal, err := p.scan()
 
@@ -59,7 +60,7 @@ func (p *Parser) scanIgnoreWhitespace() (Token, string, error) {
 
 }
 
-func (p *Parser) Parse() (Link, error) {
+func (p parser) Parse() (Link, error) {
 
 	var result = Link{}
 
@@ -112,7 +113,7 @@ func (p *Parser) Parse() (Link, error) {
 
 }
 
-func (p *Parser) parseHREF() (url.URL, error) {
+func (p *parser) parseHREF() (url.URL, error) {
 
 	var uri *url.URL
 
@@ -152,10 +153,10 @@ func (p *Parser) parseHREF() (url.URL, error) {
 
 }
 
-func (p *Parser) parseAttribute() (Token, string, string, bool, error) {
+func (p *parser) parseAttribute() (token, string, string, bool, error) {
 
 	var (
-		keyToken    Token
+		keyToken    token
 		key         string
 		value       string
 		valueRead   bool
@@ -164,46 +165,46 @@ func (p *Parser) parseAttribute() (Token, string, string, bool, error) {
 		quoteClosed bool
 	)
 
-	if token, literal, err := p.scanIgnoreWhitespace(); err != nil {
+	token, literal, err := p.scanIgnoreWhitespace()
+
+	if err != nil {
 		return INVALID, "", "", false, err
-	} else {
+	}
 
-		switch token {
-		case REL:
-			fallthrough
-		case HREFLANG:
-			fallthrough
-		case MEDIA:
-			fallthrough
-		case TITLE:
-			fallthrough
-		case TYPE:
-			fallthrough
-		case WORD:
-			keyToken = token
-			key = literal
-		default:
-			return INVALID, "", "", false, ErrInvalidLink
-		}
-
+	switch token {
+	case REL:
+		fallthrough
+	case HREFLANG:
+		fallthrough
+	case MEDIA:
+		fallthrough
+	case TITLE:
+		fallthrough
+	case TYPE:
+		fallthrough
+	case WORD:
+		keyToken = token
+		key = literal
+	default:
+		return INVALID, "", "", false, ErrInvalidLink
 	}
 
 starAndEquals:
 	for {
 
-		if token, _, err := p.scanIgnoreWhitespace(); err != nil {
+		token, _, err := p.scanIgnoreWhitespace()
+
+		if err != nil {
 			return INVALID, "", "", false, err
-		} else {
+		}
 
-			switch token {
-			case STAR: // optional
-				hasStar = true
-			case EQ:
-				break starAndEquals
-			default:
-				return INVALID, "", "", false, ErrInvalidLink
-			}
-
+		switch token {
+		case STAR: // optional
+			hasStar = true
+		case EQ:
+			break starAndEquals
+		default:
+			return INVALID, "", "", false, ErrInvalidLink
 		}
 
 	}
@@ -211,42 +212,41 @@ starAndEquals:
 valueLoop:
 	for {
 
-		if token, literal, err := p.scanIgnoreWhitespace(); err != nil && value != "" {
+		token, literal, err := p.scanIgnoreWhitespace()
+		if err != nil && value != "" {
 			return INVALID, "", "", false, err
-		} else {
+		}
 
-			switch token {
-			case QUOTE: // optional
+		switch token {
+		case QUOTE: // optional
 
-				if quoteOpened {
-					quoteClosed = true
-					valueRead = true // empty counts as read
-				}
+			if quoteOpened {
+				quoteClosed = true
+				valueRead = true // empty counts as read
+			}
 
-				quoteOpened = true
+			quoteOpened = true
 
-			case WORD:
+		case WORD:
 
-				if !valueRead {
-					valueRead = true
-					value = literal
-					break valueLoop
-				} else {
-					return INVALID, "", "", false, ErrMissingSemicolon
-				}
+			if !valueRead {
+				valueRead = true
+				value = literal
+				break valueLoop
+			} else {
+				return INVALID, "", "", false, ErrMissingSemicolon
+			}
 
-			default:
+		default:
 
-				if quoteOpened && !quoteClosed {
-					return INVALID, "", "", false, ErrMissingClosingQuote
-				} else if !valueRead {
-					return INVALID, "", "", false, ErrMissingAttrValue
-				} else if err == io.EOF {
-					break valueLoop
-				} else {
-					return INVALID, "", "", false, ErrInvalidLink
-				}
-
+			if quoteOpened && !quoteClosed {
+				return INVALID, "", "", false, ErrMissingClosingQuote
+			} else if !valueRead {
+				return INVALID, "", "", false, ErrMissingAttrValue
+			} else if err == io.EOF {
+				break valueLoop
+			} else {
+				return INVALID, "", "", false, ErrInvalidLink
 			}
 
 		}

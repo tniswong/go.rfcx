@@ -27,14 +27,14 @@ type Problem struct {
 }
 
 // Extensions returns a slice of strings representing the names of extension keys for this Problem struct
-func (p Problem) Extensions() []string
+func (p Problem) Extensions() []string { ... }
 
 // Extension retrieves the value for an extension if present. A bool is also returned to signify whether the value was
 // present upon retrieval
-func (p Problem) Extension(key string) (interface{}, bool)
+func (p Problem) Extension(key string) (interface{}, bool) { ... }
 
 // Extend adds an extension to the Problem. Only non-reserved extension keys are allowed
-func (p *Problem) Extend(key string, value interface{})
+func (p *Problem) Extend(key string, value interface{}) { ... }
 ```
 
 # RFC 8288 Web Linking
@@ -72,15 +72,15 @@ type Link struct {
 }
 
 // String returns the Link in a format usable for HTTP Headers as defined by RFC8288
-func (w Link) String() string
+func (w Link) String() string { ... }
 
 // Extensions returns a slice of strings representing the names of extension keys for this Link struct
-func (w Link) Extensions() []string
+func (w Link) Extensions() []string { ... }
 
 // Extension retrieves the value for an extension if present. A bool is also returned to signify whether the value was
 // present upon retrieval
-func (w Link) Extension(key string) (interface{}, bool)
+func (w Link) Extension(key string) (interface{}, bool) { ... }
 
 // Extend adds an extension to the Link. Only non-reserved extension keys are allowed
-func (w *Link) Extend(key string, value interface{}) error
+func (w *Link) Extend(key string, value interface{}) error { ... }
 ```

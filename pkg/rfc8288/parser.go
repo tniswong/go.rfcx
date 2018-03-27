@@ -27,18 +27,7 @@ func newParser(reader io.Reader) parser {
 	return parser{scanner: newScanner(reader)}
 }
 
-func (p *parser) unscan() {
-	p.buffer.unscanned = true
-}
-
 func (p *parser) scan() (token, string, error) {
-
-	if p.buffer.unscanned {
-
-		p.buffer.unscanned = false
-		return p.buffer.token, p.buffer.literal, nil
-
-	}
 
 	token, literal, err := p.scanner.Scan()
 
@@ -155,23 +144,25 @@ func (p *parser) parseHREF() (url.URL, error) {
 
 func (p *parser) parseAttribute() (token, string, string, bool, error) {
 
-	var (
-		keyToken    token
-		key         string
-		value       string
-		valueRead   bool
-		hasStar     bool
-		quoteOpened bool
-		quoteClosed bool
-	)
-
-	token, literal, err := p.scanIgnoreWhitespace()
+	keyToken, key, hasStar, err := p.scanAttributeKey()
 
 	if err != nil {
 		return INVALID, "", "", false, err
 	}
 
-	switch token {
+	value, err := p.scanAttributeValue()
+
+	if err != nil {
+		return INVALID, "", "", false, err
+	}
+
+	return keyToken, key, value, hasStar, nil
+
+}
+
+func (p parser) isValidAttributeKey(t token) bool {
+
+	switch t {
 	case REL:
 		fallthrough
 	case HREFLANG:
@@ -183,94 +174,171 @@ func (p *parser) parseAttribute() (token, string, string, bool, error) {
 	case TYPE:
 		fallthrough
 	case WORD:
-		keyToken = token
-		key = literal
+		return true
 	default:
-		return INVALID, "", "", false, ErrInvalidLink
+		return false
 	}
 
-starAndEquals:
+}
+
+func (p *parser) scanAttributeKey() (token, string, bool, error) {
+
+	token, literal, err := p.scanIgnoreWhitespace()
+
+	if err != nil {
+		return INVALID, "", false, err
+	}
+
+	if !p.isValidAttributeKey(token) {
+		return INVALID, "", false, ErrInvalidLink
+	}
+
+	var (
+		hasStar  bool
+		keyToken = token
+		key      = literal
+	)
+
 	for {
 
 		token, _, err := p.scanIgnoreWhitespace()
 
 		if err != nil {
-			return INVALID, "", "", false, err
+			return INVALID, "", false, err
 		}
 
-		switch token {
-		case STAR: // optional
+		if token == STAR {
 			hasStar = true
-		case EQ:
-			break starAndEquals
-		default:
-			return INVALID, "", "", false, ErrInvalidLink
+			continue
 		}
+
+		if token != EQ {
+			return INVALID, "", false, ErrInvalidLink
+		}
+
+		break
 
 	}
 
-valueLoop:
+	return keyToken, key, hasStar, nil
+
+}
+
+func (p *parser) scanAttributeValue() (string, error) {
+
+	var (
+		valueRead   bool
+		quoteOpened bool
+		quoteClosed bool
+		value       string
+	)
+
 	for {
 
 		token, literal, err := p.scanIgnoreWhitespace()
+
 		if err != nil && value != "" {
-			return INVALID, "", "", false, err
+			return "", err
 		}
 
-		switch token {
-		case QUOTE: // optional
+		// optional quote
+		if token == QUOTE {
 
+			// if we've already scanned a quote
 			if quoteOpened {
+
+				// then this closes the quote
 				quoteClosed = true
-				valueRead = true // empty counts as read
+
+				// and we've read the value
+				valueRead = true
+
 			}
 
 			quoteOpened = true
 
-		case WORD:
+		} else if token == WORD { // value word
 
+			// if we've not already read the value
 			if !valueRead {
+
+				// then we have now
 				valueRead = true
+
+				// and this is it
 				value = literal
-				break valueLoop
-			} else {
-				return INVALID, "", "", false, ErrMissingSemicolon
+
+				break
+
+			} else { // otherwise, we're missing a semicolon
+				return "", ErrMissingSemicolon
 			}
 
-		default:
+		} else { // anything else
 
-			if quoteOpened && !quoteClosed {
-				return INVALID, "", "", false, ErrMissingClosingQuote
-			} else if !valueRead {
-				return INVALID, "", "", false, ErrMissingAttrValue
-			} else if err == io.EOF {
-				break valueLoop
-			} else {
-				return INVALID, "", "", false, ErrInvalidLink
+			// if the value hasn't been read
+			if !valueRead {
+
+				// we're missing the attribute value
+				return "", ErrMissingAttrValue
+
+			} else if err == io.EOF { // if we're at EOF
+
+				// we're done
+				break
+
+			} else { // otherwise, the link is invalid
+				return "", ErrInvalidLink
 			}
 
 		}
 
 	}
 
+	if err := p.verifyQuoteTerminated(quoteOpened, quoteClosed); err != nil {
+		return "", err
+	}
+
+	if err := p.verifyAttributeTerminatedOrEOF(); err != nil {
+		return "", err
+	}
+
+	return value, nil
+
+}
+
+func (p *parser) verifyQuoteTerminated(quoteOpened bool, quoteClosed bool) error {
+
+	// if the quote is unterminated
 	if quoteOpened && !quoteClosed {
 
-		if token, _, err := p.scanIgnoreWhitespace(); err != nil {
-			return INVALID, "", "", false, err
-		} else if token != QUOTE {
-			return INVALID, "", "", false, ErrMissingClosingQuote
+		// scan for the next non-whitespace token
+		token, _, err := p.scanIgnoreWhitespace()
+
+		// if there's an error
+		if err != nil {
+			return err
+		} else if token != QUOTE { // otherwise if the token is not a QUOTE, we're missing a closing quote
+			return ErrMissingClosingQuote
 		}
 
-		quoteClosed = true
-
 	}
 
-	if token, _, err := p.scanIgnoreWhitespace(); token != SEMICOLON && err != io.EOF {
-		return INVALID, "", "", false, ErrMissingSemicolon
+	return nil
+
+}
+
+func (p *parser) verifyAttributeTerminatedOrEOF() error {
+
+	// scan for the next non-whitespace token
+	token, _, err := p.scanIgnoreWhitespace()
+
+	if token != SEMICOLON && err != io.EOF {
+		return ErrMissingSemicolon
 	} else if err != nil && err != io.EOF {
-		return INVALID, "", "", false, err
+		return err
 	}
 
-	return keyToken, key, value, hasStar, nil
+	return nil
 
 }

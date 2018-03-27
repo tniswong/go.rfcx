@@ -93,9 +93,27 @@ lint: .PRE_LINT
 # Returns cyclomatic complexity information on the code. Uses https://github.com/fzipp/gocyclo
 .PHONY: complexity
 complexity:
+
+	@$(eval COMPLEXITY_MAXIMUM := 25)
+	@$(eval COMPLEXITY_ACTUAL := $(shell										\
+		gocyclo -top 10 `go list -f '{{ .Dir }}' ./... | grep -v /vendor/` |	\
+		head -n 1 |																\
+		awk '{print $$1}'														\
+	))
+
 	@echo "Cyclomatic Complexity Report - Top Ten Most Complex:"
 	@echo "----------------------------------------------------"
 	@gocyclo -top 10 `go list -f '{{ .Dir }}' ./... | grep -v /vendor/`
+
+	@echo
+
+	@echo "$(COMPLEXITY_ACTUAL)" | awk 'BEGIN { if ('$(COMPLEXITY_ACTUAL)' <= '$(COMPLEXITY_MAXIMUM)') {	\
+		print "[PASS] The most complex code was below the maximum threshold of $(COMPLEXITY_MAXIMUM)!";		\
+		exit 0;																								\
+	} else {																								\
+		print "[FAIL] The most complex code was above the maximum threshold of $(COMPLEXITY_MAXIMUM)!";		\
+		exit 1;																								\
+	} }'
 
 # Dummy target necessary for makefile variable expansion reasons. Ginkgo (https://github.com/onsi/ginkgo) is our test
 # runner. Ginkgo leaves *.coverprofile files separated into each package, so we use gover
@@ -112,11 +130,11 @@ complexity:
 	@echo "Coverage Report:"
 	@echo "----------------"
 
-# Coverage using https://golang.org/cmd/cover/.
+# Coverage Report using https://golang.org/cmd/cover/.
 .PHONY: coverage
 coverage: .CHECK_FORMAT vet lint clean .RUN_TESTS .PRE_COVERAGE
 
-	@$(eval COVERAGE_TARGET := 75)
+	@$(eval COVERAGE_MINIMUM := 80)
 	@$(eval COVERAGE_ACTUAL := $(shell					\
 		go tool cover -func=gover.coverprofile |		\
 		tee /dev/tty | 									\
@@ -127,15 +145,16 @@ coverage: .CHECK_FORMAT vet lint clean .RUN_TESTS .PRE_COVERAGE
 
 	@echo
 
-	@echo "$(COVERAGE_ACTUAL)" | awk 'BEGIN { if ('$(COVERAGE_ACTUAL)' > '$(COVERAGE_TARGET)') { 	\
-		print "[PASS] Coverage meets the required threshold of at least $(COVERAGE_TARGET)%!"; 		\
+	@echo "$(COVERAGE_ACTUAL)" | awk 'BEGIN { if ('$(COVERAGE_ACTUAL)' > '$(COVERAGE_MINIMUM)') { 	\
+		print "[PASS] Coverage meets the required threshold of at least $(COVERAGE_MINIMUM)%!"; 	\
 		exit 0;																						\
 	} else { 																						\
-		print "[FAIL] Coverage was below required threshold of at least $(COVERAGE_TARGET)%!"; 		\
+		print "[FAIL] Coverage was below required threshold of at least $(COVERAGE_MINIMUM)%!"; 	\
 		exit 1; 																					\
 	} }'
 
 	@echo
 
+# Test Report using https://onsi.github.io/ginkgo/
 .PHONY: test
 test: coverage complexity

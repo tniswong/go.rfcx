@@ -127,10 +127,10 @@ coverage: .CHECK_FORMAT vet lint clean .RUN_TESTS .PRE_COVERAGE
 	@echo
 
 	@echo "$(COVERAGE_ACTUAL)" | awk 'BEGIN { if ('$(COVERAGE_ACTUAL)' > '$(COVERAGE_TARGET)') { 	\
-		print "[PASS] Coverage meets the required threshold of at least $(COVERAGE_TARGET)%!"; 				\
+		print "[PASS] Coverage meets the required threshold of at least $(COVERAGE_TARGET)%!"; 		\
 		exit 0;																						\
 	} else { 																						\
-		print "[FAIL] Coverage was below required threshold of at least $(COVERAGE_TARGET)%!"; 				\
+		print "[FAIL] Coverage was below required threshold of at least $(COVERAGE_TARGET)%!"; 		\
 		exit 1; 																					\
 	} }'
 

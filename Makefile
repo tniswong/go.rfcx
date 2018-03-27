@@ -49,12 +49,11 @@ doc:
 # Installs build-time dependencies
 .PHONY: deps
 deps:
-	go get -u github.com/onsi/ginkgo/ginkgo
-	go get -u github.com/sozorogami/gover
-	go get -u github.com/jgautheron/gocyclo
-	go get -u github.com/fzipp/gocyclo
-	go get -u github.com/golang/dep/cmd/dep
-	go get -u golang.org/x/lint/golint
+	@command -v ginkgo &>/dev/null 	|| go get -u github.com/onsi/ginkgo/ginkgo
+	@command -v gover &>/dev/null 	|| go get -u github.com/sozorogami/gover
+	@command -v gocyclo &>/dev/null || go get -u github.com/fzipp/gocyclo
+	@command -v dep &>/dev/null 	|| go get -u github.com/golang/dep/cmd/dep
+	@command -v golint &>/dev/null 	|| go get -u golang.org/x/lint/golint
 
 # Installs run-time dependencies
 .PHONY: ensure

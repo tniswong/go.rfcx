@@ -69,6 +69,7 @@ vet:
 		&& exit 1																	\
 	)
 
+# Dummy target for console formatting. Fixes console display ordering issues because we're using tee to /dev/tty
 .PHONY: .PRE_LINT
 .PRE_LINT:
 	@echo "Linting Results:"

@@ -7,7 +7,7 @@ clean:
 .PHONY: doc
 doc:
 	$(eval PORT := 6060)
-	@echo Starting godoc server at http://localhost:$(PORT). Enter Ctrl-C to stop.
+	@echo "Starting godoc server at http://localhost:$(PORT). Enter Ctrl-C to stop."
 	@godoc -http :$(PORT)
 
 # Installs build-time dependencies

@@ -1,7 +1,6 @@
 package rfc8288
 
 import (
-	"bufio"
 	"bytes"
 	"io"
 	"unicode"
@@ -25,7 +24,7 @@ const (
 	EOF
 	STAR
 
-	// multicharacter
+	// multi-character
 	WORD
 	WS
 
@@ -36,20 +35,6 @@ const (
 	TITLE
 	TYPE
 )
-
-// scanner is a lexer for rfc8288
-type scanner struct {
-	reader   bufio.Reader
-	lastRead token
-
-	quoteOpen   bool
-	bracketOpen bool
-}
-
-// newScanner is a constructor for scanner structs
-func newScanner(reader io.Reader) scanner {
-	return scanner{reader: *bufio.NewReader(reader)}
-}
 
 // isWhitespace returns true if rune a unicode whitespace character
 func isWhitespace(r rune) bool {
@@ -66,24 +51,22 @@ func isStar(r rune) bool {
 	return r == '*'
 }
 
-// read the next rune from the buffered reader (io.EOF is returned as error on attempting to read EOF)
-func (s *scanner) read() (rune, error) {
-	r, _, err := s.reader.ReadRune()
-	return r, err
+// scanner is a lexer for rfc8288
+type scanner struct {
+	runeScanner io.RuneScanner
+	lastRead    token
+
+	quoteOpen   bool
+	bracketOpen bool
 }
 
-// unread the last rune from the reader
-func (s *scanner) unread() error {
-	return s.reader.UnreadRune()
-}
-
-// Scan returns the next token and literal, or error
-func (s *scanner) Scan() (token token, literal string, err error) {
+// scan returns the next token and literal, or error
+func (s *scanner) Scan() (token, string, error) {
 
 	// read
 	if r, err := s.read(); err != nil { // eof
 
-		return EOF, "", io.EOF
+		return s.scanned(EOF, "", nil)
 
 	} else if isWhitespace(r) { // is whitespace?
 
@@ -131,8 +114,19 @@ func (s *scanner) Scan() (token token, literal string, err error) {
 
 }
 
+// read the next rune from the buffered runeScanner
+func (s *scanner) read() (rune, error) {
+	r, _, err := s.runeScanner.ReadRune()
+	return r, err
+}
+
+// unread the last rune from the runeScanner
+func (s *scanner) unread() error {
+	return s.runeScanner.UnreadRune()
+}
+
 // scanWhitespace scans for contiguous whitespace
-func (s *scanner) scanWhitespace() (token token, literal string, err error) {
+func (s *scanner) scanWhitespace() (token, string, error) {
 
 	// buf is a place to store the contiguous whitespace
 	var buf bytes.Buffer
@@ -140,27 +134,33 @@ func (s *scanner) scanWhitespace() (token token, literal string, err error) {
 	for {
 
 		// read
-		if r, err := s.read(); err != nil { // if eof
+		r, err := s.read()
+
+		if err != nil { // if eof
 
 			// eof
 			break
 
-		} else if !isWhitespace(r) { // if not whitespace
+		}
+
+		if !isWhitespace(r) { // if not whitespace
 
 			// unread the last rune
-			if err := s.unread(); err != nil {
+			err := s.unread()
+
+			if err != nil {
 				return INVALID, "", err
 			}
 
 			break
 
-		} else { // is whitespace
+		}
 
-			// write to buf
-			if _, err := buf.WriteRune(r); err != nil {
-				return INVALID, "", err
-			}
+		// its whitespace, write to buf
+		_, err = buf.WriteRune(r)
 
+		if err != nil {
+			return INVALID, "", err
 		}
 
 	}
@@ -171,7 +171,7 @@ func (s *scanner) scanWhitespace() (token token, literal string, err error) {
 }
 
 // scanWord scans for continuous word runes
-func (s *scanner) scanWord() (token token, literal string, err error) {
+func (s *scanner) scanWord() (token, string, error) {
 
 	// buf is a place to store the contiguous word runes
 	var buf bytes.Buffer
@@ -179,36 +179,46 @@ func (s *scanner) scanWord() (token token, literal string, err error) {
 	for {
 
 		// read
-		if r, err := s.read(); err != nil { // if eof
+		r, err := s.read()
+
+		if err != nil {
 
 			// eof
 			break
 
-		} else if isSymbol(r) { // if symbol
+		}
 
-			// unread and break
-			if err := s.unread(); err != nil {
+		if isSymbol(r) {
+
+			err := s.unread()
+
+			if err != nil {
 				return INVALID, "", err
 			}
 
 			break
-
-		} else if isStar(r) && s.lastRead != QUOTE && s.lastRead != LT { // if star, and not in quotes or chevrons
-
-			// unread and break
-			if err := s.unread(); err != nil {
-				return INVALID, "", err
-			}
-
-			break
-
-		} else { // otherwise write the rune to buf
-
-			if _, err := buf.WriteRune(r); err != nil {
-				return INVALID, "", err
-			}
 
 		}
+
+		if isStar(r) && s.lastRead != QUOTE && s.lastRead != LT { // if star, and not in quotes or chevrons
+
+			err := s.unread()
+
+			if err != nil {
+				return INVALID, "", err
+			}
+
+			break
+
+		}
+
+		// otherwise write the rune to buf
+		_, err = buf.WriteRune(r)
+
+		if err != nil {
+			return INVALID, "", err
+		}
+
 	}
 
 	// as long as we're not in quotes or chevrons

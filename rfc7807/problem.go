@@ -13,61 +13,80 @@ const (
 	JSONMediaType = "application/problem+json"
 )
 
-// ErrExtensionKeyIsReserved is thrown when attempting to call .Extend(k,v) on a problem with a reserved key name
-var ErrExtensionKeyIsReserved = errors.New("rfc7807: the given extension key name is reserved please choose another name")
+var (
+	// ErrExtensionKeyIsReserved describes an attempt to call Problem.Extend(k,v) with a reserved key name
+	ErrExtensionKeyIsReserved = errors.New("rfc7807: the given extension key name is reserved please choose another name")
 
-var reservedKeys = map[string]struct{}{
-	"type":     {},
-	"title":    {},
-	"status":   {},
-	"detail":   {},
-	"instance": {},
-}
-
-// Problem is a struct representing Problem Details as descrbed in rfc7807
-type Problem struct {
-	Type       string
-	Title      string
-	Status     int64
-	Detail     string
-	Instance   url.URL
-	extensions map[string]interface{}
-}
-
-// Extensions returns a slice of strings representing the names of extension keys for this Problem struct
-func (p Problem) Extensions() []string {
-
-	extensions := make([]string, len(p.extensions))
-	x := 0
-
-	for extension := range p.extensions {
-		extensions[x] = extension
-		x++
+	// ReservedKeys holes the names of all the reserved key names that are not allowed to be used as extensions
+	ReservedKeys = map[string]struct{}{
+		"type":     {},
+		"title":    {},
+		"status":   {},
+		"detail":   {},
+		"instance": {},
 	}
+)
 
-	return extensions
+// Problem is a struct representing Problem Details as described in rfc7807
+type Problem struct {
+	Type     string
+	Title    string
+	Status   int64
+	Detail   string
+	Instance url.URL
 
+	extensionKeys []string
+	extensions    map[string]interface{}
+}
+
+// ExtensionKeys returns a slice of strings representing the names of extension keys for this Problem struct
+func (p Problem) ExtensionKeys() []string {
+	return p.extensionKeys
 }
 
 // Extension retrieves the value for an extension if present. A bool is also returned to signify whether the value was
 // present upon retrieval
-func (p Problem) Extension(key string) (interface{}, bool) {
-	val, ok := p.extensions[key]
-	return val, ok
-}
-
-// Extend adds an extension to the Problem. Only non-reserved extension keys are allowed
-func (p *Problem) Extend(key string, value interface{}) error {
-
-	if _, reserved := reservedKeys[strings.ToLower(key)]; reserved {
-		return ErrExtensionKeyIsReserved
-	}
+func (p *Problem) Extension(key string) (interface{}, bool) {
 
 	if p.extensions == nil {
 		p.extensions = make(map[string]interface{})
 	}
 
-	p.extensions[key] = value
+	val, ok := p.extensions[key]
+	return val, ok
+}
+
+// Extend adds an extension to the Problem. Only non-reserved extension keys are allowed.
+// Setting the value to nil will remove the extension.
+func (p *Problem) Extend(key string, value interface{}) error {
+
+	if _, reserved := ReservedKeys[strings.ToLower(key)]; reserved {
+		return ErrExtensionKeyIsReserved
+	}
+
+	_, keyFound := p.Extension(key)
+	if !keyFound {
+		p.extensionKeys = append(p.extensionKeys, key)
+	}
+
+	if value != nil {
+		p.extensions[key] = value
+	} else {
+
+		delete(p.extensions, key)
+
+		for x := 0; x < len(p.extensionKeys); {
+
+			if strings.EqualFold(key, p.extensionKeys[x]) {
+				p.extensionKeys = append(p.extensionKeys[:x], p.extensionKeys[x+1:]...)
+				break
+			}
+
+			x++
+
+		}
+
+	}
 
 	return nil
 
@@ -99,8 +118,8 @@ func (p Problem) MarshalJSON() ([]byte, error) {
 		out["instance"] = p.Instance.String()
 	}
 
-	for k, v := range p.extensions {
-		out[k] = v
+	for _, extensionKey := range p.extensionKeys {
+		out[extensionKey] = p.extensions[extensionKey]
 	}
 
 	return json.Marshal(out)

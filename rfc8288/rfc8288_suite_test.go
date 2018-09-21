@@ -1,4 +1,4 @@
-package rfc7807_test
+package rfc8288
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -6,14 +6,6 @@ import (
 	"net/url"
 	"testing"
 )
-
-var ReservedKeys = map[string]struct{}{
-	"type":     {},
-	"title":    {},
-	"status":   {},
-	"detail":   {},
-	"instance": {},
-}
 
 func URL(u string) url.URL {
 
@@ -28,7 +20,7 @@ func URL(u string) url.URL {
 
 }
 
-func TestRfc7807(t *testing.T) {
+func TestRfc8288(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Rfc7807 Suite")
+	RunSpecs(t, "Rfc8288 Suite")
 }

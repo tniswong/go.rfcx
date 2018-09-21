@@ -2,39 +2,23 @@ package rfc8288
 
 import (
 	"errors"
-	"io"
 	"net/url"
 )
 
-// Parse Error Types
+// parse Error Types
 var (
-	ErrInvalidLink         = errors.New("[ERR] invalid link")
-	ErrMissingSemicolon    = errors.New("[ERR] invalid link: missing semicolon")
-	ErrMissingClosingQuote = errors.New("[ERR] invalid link: missing closing quote")
-	ErrMissingAttrValue    = errors.New("[ERR] invalid link: missing attribute value")
+	ErrInvalidLink         = errors.New("rfc8288: invalid link")
+	ErrMissingSemicolon    = errors.New("rfc8288: invalid link, missing semicolon")
+	ErrMissingClosingQuote = errors.New("rfc8288: invalid link, missing closing quote")
+	ErrMissingAttrValue    = errors.New("rfc8288: invalid link, missing attribute value")
 )
 
 type parser struct {
 	scanner scanner
-	buffer  struct {
-		token     token
-		literal   string
-		unscanned bool
-	}
-}
-
-func newParser(reader io.Reader) parser {
-	return parser{scanner: newScanner(reader)}
 }
 
 func (p *parser) scan() (token, string, error) {
-
-	token, literal, err := p.scanner.Scan()
-
-	p.buffer.token = token
-	p.buffer.literal = literal
-
-	return token, literal, err
+	return p.scanner.Scan()
 }
 
 func (p *parser) scanIgnoreWhitespace() (token, string, error) {
@@ -42,18 +26,17 @@ func (p *parser) scanIgnoreWhitespace() (token, string, error) {
 	token, literal, err := p.scan()
 
 	if token == WS {
-		token, literal, err = p.scan()
+		return p.scan()
 	}
 
 	return token, literal, err
 
 }
 
-func (p parser) Parse() (Link, error) {
+func (p parser) parse() (Link, error) {
 
 	var result = Link{}
-
-	href, err := p.parseHREF()
+	href, err := p.href()
 
 	if err != nil {
 		return Link{}, err
@@ -61,13 +44,12 @@ func (p parser) Parse() (Link, error) {
 
 	result.HREF = href
 
+loop:
 	for {
 
-		token, key, value, hasStar, err := p.parseAttribute()
+		token, key, value, hasStar, err := p.attribute()
 
-		if err == io.EOF {
-			break
-		} else if err != nil {
+		if err != nil {
 			return Link{}, err
 		}
 
@@ -91,7 +73,7 @@ func (p parser) Parse() (Link, error) {
 		case WORD:
 			result.Extend(key, value)
 		case EOF:
-			return result, nil
+			break loop
 		default:
 			return Link{}, ErrInvalidLink
 		}
@@ -102,61 +84,79 @@ func (p parser) Parse() (Link, error) {
 
 }
 
-func (p *parser) parseHREF() (url.URL, error) {
+func (p *parser) href() (url.URL, error) {
 
 	var uri *url.URL
 
-	if token, _, err := p.scanIgnoreWhitespace(); err != nil {
+	token, _, err := p.scanIgnoreWhitespace()
+
+	if err != nil {
 		return url.URL{}, err
-	} else if token != LT {
+	}
+
+	if token != LT {
 		return url.URL{}, ErrInvalidLink
 	}
 
-	if token, literal, err := p.scanIgnoreWhitespace(); err != nil {
+	token, literal, err := p.scanIgnoreWhitespace()
+
+	if err != nil {
 		return url.URL{}, err
-	} else if token != WORD {
-		return url.URL{}, ErrInvalidLink
-	} else {
-
-		uri, err = url.Parse(literal)
-
-		if err != nil {
-			return url.URL{}, err
-		}
-
 	}
 
-	if token, _, err := p.scanIgnoreWhitespace(); err != nil {
-		return url.URL{}, err
-	} else if token != GT {
+	if token != WORD {
 		return url.URL{}, ErrInvalidLink
 	}
 
-	if token, _, err := p.scanIgnoreWhitespace(); token != SEMICOLON && err != io.EOF {
+	uri, err = url.Parse(literal)
+
+	if err != nil {
+		return url.URL{}, err
+	}
+
+	token, _, err = p.scanIgnoreWhitespace()
+
+	if err != nil {
+		return url.URL{}, err
+	}
+
+	if token != GT {
+		return url.URL{}, ErrInvalidLink
+	}
+
+	token, _, err = p.scanIgnoreWhitespace()
+
+	if err != nil {
+		return url.URL{}, err
+	}
+
+	if token != SEMICOLON && token != EOF {
 		return url.URL{}, ErrMissingSemicolon
-	} else if err != nil && err != io.EOF {
-		return url.URL{}, err
 	}
 
 	return *uri, nil
 
 }
 
-func (p *parser) parseAttribute() (token, string, string, bool, error) {
+func (p *parser) attribute() (token, string, string, bool, error) {
 
-	keyToken, key, hasStar, err := p.scanAttributeKey()
-
-	if err != nil {
-		return INVALID, "", "", false, err
-	}
-
-	value, err := p.scanAttributeValue()
+	token, key, hasStar, err := p.attributeKey()
 
 	if err != nil {
 		return INVALID, "", "", false, err
 	}
 
-	return keyToken, key, value, hasStar, nil
+	if token == EOF {
+		return EOF, "", "", false, nil
+	}
+
+	value, err := p.attributeValue()
+
+	if err != nil {
+		return INVALID, "", "", false, err
+	}
+
+	return token, key, value, hasStar, nil
 
 }
 
@@ -181,12 +181,16 @@ func (p parser) isValidAttributeKey(t token) bool {
 
 }
 
-func (p *parser) scanAttributeKey() (token, string, bool, error) {
+func (p *parser) attributeKey() (token, string, bool, error) {
 
 	token, literal, err := p.scanIgnoreWhitespace()
 
 	if err != nil {
 		return INVALID, "", false, err
+	}
+
+	if token == EOF {
+		return EOF, literal, false, nil
 	}
 
 	if !p.isValidAttributeKey(token) {
@@ -224,7 +228,7 @@ func (p *parser) scanAttributeKey() (token, string, bool, error) {
 
 }
 
-func (p *parser) scanAttributeValue() (string, error) {
+func (p *parser) attributeValue() (string, error) {
 
 	var (
 		valueRead   bool
@@ -270,9 +274,10 @@ func (p *parser) scanAttributeValue() (string, error) {
 
 				break
 
-			} else { // otherwise, we're missing a semicolon
-				return "", ErrMissingSemicolon
 			}
+
+			// otherwise, we're missing a semicolon
+			return "", ErrMissingSemicolon
 
 		} else { // anything else
 
@@ -282,14 +287,16 @@ func (p *parser) scanAttributeValue() (string, error) {
 				// we're missing the attribute value
 				return "", ErrMissingAttrValue
 
-			} else if err == io.EOF { // if we're at EOF
+			}
 
+			// if we're at EOF
+			if token == EOF {
 				// we're done
 				break
-
-			} else { // otherwise, the link is invalid
-				return "", ErrInvalidLink
 			}
+
+			// otherwise, the link is invalid
+			return "", ErrInvalidLink
 
 		}
 
@@ -318,7 +325,9 @@ func (p *parser) verifyQuoteTerminated(quoteOpened bool, quoteClosed bool) error
 		// if there's an error
 		if err != nil {
 			return err
-		} else if token != QUOTE { // otherwise if the token is not a QUOTE, we're missing a closing quote
+		}
+
+		if token != QUOTE { // otherwise if the token is not a QUOTE, we're missing a closing quote
 			return ErrMissingClosingQuote
 		}
 
@@ -333,10 +342,12 @@ func (p *parser) verifyAttributeTerminatedOrEOF() error {
 	// scan for the next non-whitespace token
 	token, _, err := p.scanIgnoreWhitespace()
 
-	if token != SEMICOLON && err != io.EOF {
-		return ErrMissingSemicolon
-	} else if err != nil && err != io.EOF {
+	if err != nil {
 		return err
+	}
+
+	if token != SEMICOLON && token != EOF {
+		return ErrMissingSemicolon
 	}
 
 	return nil

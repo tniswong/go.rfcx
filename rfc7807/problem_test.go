@@ -1,12 +1,12 @@
-package rfc7807_test
+package rfc7807
 
 import (
 	"encoding/json"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
-	. "github.com/tniswong/go.rfcx/pkg/rfc7807"
 	"net/url"
+	"reflect"
 )
 
 var _ = Describe("Rfc7807", func() {
@@ -46,7 +46,7 @@ var _ = Describe("Rfc7807", func() {
 				Expect(result["instance"]).To(Equal(out["instance"]))
 			}
 
-			for _, key := range in.Extensions() {
+			for _, key := range in.ExtensionKeys() {
 				Expect(result[key]).To(Equal(out[key]))
 			}
 
@@ -294,5 +294,148 @@ var _ = Describe("Rfc7807", func() {
 			}(),
 		),
 	)
+
+	DescribeTable(
+		"UnmarshalJSON error cases",
+		func(in string, out error) {
+
+			// given
+			p := Problem{}
+
+			// when
+			err := json.Unmarshal([]byte(in), &p)
+
+			// then
+			Expect(err).To(Equal(out))
+
+		},
+		Entry(
+			"should return json.UnmarshalTypeError describing type field",
+			`{
+                "type": false
+            }`,
+			&json.UnmarshalTypeError{
+				Value:  "string",
+				Type:   reflect.TypeOf(""),
+				Field:  "type",
+				Struct: "Problem",
+			},
+		),
+		Entry(
+			"should return json.UnmarshalTypeError describing title field",
+			`{
+                "title": false
+            }`,
+			&json.UnmarshalTypeError{
+				Value:  "string",
+				Type:   reflect.TypeOf(""),
+				Field:  "title",
+				Struct: "Problem",
+			},
+		),
+		Entry(
+			"should return json.UnmarshalTypeError describing status field",
+			`{
+                "status": "status"
+            }`,
+			&json.UnmarshalTypeError{
+				Value:  "number",
+				Type:   reflect.TypeOf(int64(0)),
+				Field:  "status",
+				Struct: "Problem",
+			},
+		),
+		Entry(
+			"should return json.UnmarshalTypeError describing detail field",
+			`{
+                "detail": false
+            }`,
+			&json.UnmarshalTypeError{
+				Value:  "string",
+				Type:   reflect.TypeOf(""),
+				Field:  "detail",
+				Struct: "Problem",
+			},
+		),
+		Entry(
+			"should return json.UnmarshalTypeError describing instance field",
+			`{
+                "instance": "Not a valid url !@#$%^&*()_+"
+            }`,
+			&json.UnmarshalTypeError{
+				Value:  "uri",
+				Type:   reflect.TypeOf(url.URL{}),
+				Field:  "instance",
+				Struct: "Problem",
+			},
+		),
+		Entry(
+			"should return json.UnmarshalTypeError describing instance field",
+			`{
+                "instance": false
+            }`,
+			&json.UnmarshalTypeError{
+				Value:  "uri",
+				Type:   reflect.TypeOf(""),
+				Field:  "instance",
+				Struct: "Problem",
+			},
+		),
+	)
+
+	Describe("Extend(key, value)", func() {
+
+		It("should make the value accessible via Extension(key)", func() {
+
+			// given
+			p := Problem{}
+			key := "extension"
+			value := "value"
+
+			// when
+			p.Extend(key, value)
+			result, ok := p.Extension(key)
+
+			// then
+			Expect(ok).To(BeTrue())
+			Expect(result).To(Equal(value))
+
+		})
+
+		It("should delete the extension if assigned a nil value", func() {
+
+			// given
+			p := Problem{}
+			key := "extension"
+			value := "value"
+
+			// when
+			p.Extend(key, value)
+			p.Extend(key, nil)
+			result, ok := p.Extension(key)
+
+			// then
+			Expect(ok).To(BeFalse())
+			Expect(result).To(BeNil())
+
+		})
+
+		It("should return ErrExtensionKeyIsReserved if attempting to Extend with reserved key", func() {
+
+			// given
+			p := Problem{}
+
+			// expect
+			for reservedKey := range ReservedKeys {
+
+				err := p.Extend(reservedKey, "any")
+
+				Expect(err).To(Equal(ErrExtensionKeyIsReserved))
+
+			}
+
+		})
+
+	})
 
 })

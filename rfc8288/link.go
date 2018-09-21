@@ -4,16 +4,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"reflect"
 	"strings"
 )
 
 var (
-	// ErrExtensionKeyIsReserved is thrown when attempting to call .Extend(k,v) on a Link with a reserved key name
+	// ErrExtensionKeyIsReserved describes an attempt to call Link.Extend(k,v) with a reserved key name
 	ErrExtensionKeyIsReserved = errors.New("rfc8288: the given extension key name is reserved please choose another name")
 
-	reservedKeys = map[string]struct{}{
+	// ReservedKeys holds the names of all the reserved key names that are not allowed to be used as extensions
+	ReservedKeys = map[string]struct{}{
+		"href":     {},
 		"rel":      {},
 		"hreflang": {},
 		"media":    {},
@@ -25,53 +28,63 @@ var (
 
 // ParseLink attempts to parse a link string
 func ParseLink(link string) (Link, error) {
-	return newParser(strings.NewReader(link)).Parse()
+
+	var (
+		rs io.RuneScanner = strings.NewReader(link)
+		s                 = scanner{runeScanner: rs}
+		p                 = parser{scanner: s}
+	)
+
+	return p.parse()
+
 }
 
 // Link is an implementation of the structure defined by RFC8288 Web Linking
 type Link struct {
-	HREF       url.URL
-	Rel        string
-	HREFLang   string
-	Media      string
-	Title      string
-	TitleStar  string
-	Type       string
-	extensions map[string]interface{}
+	HREF      url.URL
+	Rel       string
+	HREFLang  string
+	Media     string
+	Title     string
+	TitleStar string
+	Type      string
+
+	extensionKeys []string
+	extensions    map[string]interface{}
 }
 
 // String returns the Link in a format usable for HTTP Headers as defined by RFC8288
-func (w Link) String() string {
+func (l Link) String() string {
 
 	var result []string
 
-	result = append(result, fmt.Sprintf(`<%s>`, w.HREF.String()))
+	result = append(result, fmt.Sprintf(`<%s>`, l.HREF.String()))
 
-	if w.Rel != "" {
-		result = append(result, fmt.Sprintf(`rel="%s"`, w.Rel))
+	if l.Rel != "" {
+		result = append(result, fmt.Sprintf(`rel="%s"`, l.Rel))
 	}
 
-	if w.HREFLang != "" {
-		result = append(result, fmt.Sprintf(`hreflang="%s"`, w.HREFLang))
+	if l.HREFLang != "" {
+		result = append(result, fmt.Sprintf(`hreflang="%s"`, l.HREFLang))
 	}
 
-	if w.Media != "" {
-		result = append(result, fmt.Sprintf(`media="%s"`, w.Media))
+	if l.Media != "" {
+		result = append(result, fmt.Sprintf(`media="%s"`, l.Media))
 	}
 
-	if w.Title != "" {
-		result = append(result, fmt.Sprintf(`title="%s"`, w.Title))
+	if l.Title != "" {
+		result = append(result, fmt.Sprintf(`title="%s"`, l.Title))
 	}
 
-	if w.TitleStar != "" {
-		result = append(result, fmt.Sprintf(`title*="%s"`, w.TitleStar))
+	if l.TitleStar != "" {
+		result = append(result, fmt.Sprintf(`title*="%s"`, l.TitleStar))
 	}
 
-	if w.Type != "" {
-		result = append(result, fmt.Sprintf(`type="%s"`, w.Type))
+	if l.Type != "" {
+		result = append(result, fmt.Sprintf(`type="%s"`, l.Type))
 	}
 
-	for key, value := range w.extensions {
+	for key, value := range l.extensions {
 		result = append(result, fmt.Sprintf(`%s="%s"`, key, value))
 	}
 
@@ -79,89 +92,105 @@ func (w Link) String() string {
 
 }
 
-// Extensions returns a slice of strings representing the names of extension keys for this Link struct
-func (w Link) Extensions() []string {
-
-	extensions := make([]string, len(w.extensions))
-	x := 0
-
-	for extension := range w.extensions {
-		extensions[x] = extension
-		x++
-	}
-
-	return extensions
-
+// ExtensionKeys returns a slice of strings representing the names of extension keys for this Link struct in the order
+// they were added
+func (l Link) ExtensionKeys() []string {
+	return l.extensionKeys
 }
 
 // Extension retrieves the value for an extension if present. A bool is also returned to signify whether the value was
 // present upon retrieval
-func (w Link) Extension(key string) (interface{}, bool) {
-	val, ok := w.extensions[key]
+func (l *Link) Extension(key string) (interface{}, bool) {
+
+	if l.extensions == nil {
+		l.extensions = make(map[string]interface{})
+	}
+
+	val, ok := l.extensions[key]
 	return val, ok
+
 }
 
-// Extend adds an extension to the Link. Only non-reserved extension keys are allowed
-func (w *Link) Extend(key string, value interface{}) error {
+// Extend adds an extension to the Link. Only non-reserved extension keys are allowed.
+// Setting the value to nil will remove the extension.
+func (l *Link) Extend(key string, value interface{}) error {
 
-	if _, reserved := reservedKeys[strings.ToLower(key)]; reserved {
+	if _, reserved := ReservedKeys[strings.ToLower(key)]; reserved {
 		return ErrExtensionKeyIsReserved
 	}
 
-	if w.extensions == nil {
-		w.extensions = make(map[string]interface{})
+	_, keyFound := l.Extension(key)
+	if !keyFound {
+		l.extensionKeys = append(l.extensionKeys, key)
 	}
 
-	w.extensions[key] = value
+	if value != nil {
+		l.extensions[key] = value
+	} else {
+
+		delete(l.extensions, key)
+
+		for x := 0; x < len(l.extensionKeys); {
+
+			if strings.EqualFold(key, l.extensionKeys[x]) {
+				l.extensionKeys = append(l.extensionKeys[:x], l.extensionKeys[x+1:]...)
+				break
+			}
+
+			x++
+
+		}
+
+	}
 
 	return nil
 
 }
 
 // MarshalJSON Marshals JSON
-func (w Link) MarshalJSON() ([]byte, error) {
+func (l Link) MarshalJSON() ([]byte, error) {
 
 	out := map[string]interface{}{}
 
 	var zero url.URL
-	if w.HREF != zero {
-		out["href"] = w.HREF.String()
+	if l.HREF != zero {
+		out["href"] = l.HREF.String()
 	}
 
-	if w.Rel != "" {
-		out["rel"] = w.Rel
+	if l.Rel != "" {
+		out["rel"] = l.Rel
 	}
 
-	if w.HREFLang != "" {
-		out["hreflang"] = w.HREFLang
+	if l.HREFLang != "" {
+		out["hreflang"] = l.HREFLang
 	}
 
-	if w.Media != "" {
-		out["media"] = w.Media
+	if l.Media != "" {
+		out["media"] = l.Media
 	}
 
-	if w.Title != "" {
-		out["title"] = w.Title
+	if l.Title != "" {
+		out["title"] = l.Title
 	}
 
-	if w.TitleStar != "" {
-		out["title*"] = w.TitleStar
+	if l.TitleStar != "" {
+		out["title*"] = l.TitleStar
 	}
 
-	if w.Type != "" {
-		out["type"] = w.Type
+	if l.Type != "" {
+		out["type"] = l.Type
 	}
 
-	for k, v := range w.extensions {
-		out[k] = v
+	for _, extensionKey := range l.extensionKeys {
+		out[extensionKey] = l.extensions[extensionKey]
 	}
 
 	return json.Marshal(out)
 
 }
 
-// UnmarshalJSON unmarshalls JSON
-func (w *Link) UnmarshalJSON(data []byte) error {
+// UnmarshalJSON unmarshal JSON
+func (l *Link) UnmarshalJSON(data []byte) error {
 
 	in := map[string]interface{}{}
 	json.Unmarshal(data, &in)
@@ -174,12 +203,12 @@ func (w *Link) UnmarshalJSON(data []byte) error {
 			if str, ok := v.(string); ok {
 
 				if uri, err := url.Parse(str); err == nil {
-					w.HREF = *uri
+					l.HREF = *uri
 				} else {
 
 					return &json.UnmarshalTypeError{
 						Value:  "uri",
-						Type:   reflect.TypeOf(w.HREF),
+						Type:   reflect.TypeOf(l.HREF),
 						Field:  "href",
 						Struct: "Link",
 					}
@@ -191,7 +220,7 @@ func (w *Link) UnmarshalJSON(data []byte) error {
 				return &json.UnmarshalTypeError{
 					Value:  "uri",
 					Type:   reflect.TypeOf(""),
-					Field:  "instance",
+					Field:  "href",
 					Struct: "Link",
 				}
 
@@ -200,7 +229,7 @@ func (w *Link) UnmarshalJSON(data []byte) error {
 		case "rel":
 
 			if str, ok := v.(string); ok {
-				w.Rel = str
+				l.Rel = str
 			} else {
 				return &json.UnmarshalTypeError{
 					Value:  "string",
@@ -213,7 +242,7 @@ func (w *Link) UnmarshalJSON(data []byte) error {
 		case "hreflang":
 
 			if str, ok := v.(string); ok {
-				w.HREFLang = str
+				l.HREFLang = str
 			} else {
 				return &json.UnmarshalTypeError{
 					Value:  "string",
@@ -226,7 +255,7 @@ func (w *Link) UnmarshalJSON(data []byte) error {
 		case "media":
 
 			if str, ok := v.(string); ok {
-				w.Media = str
+				l.Media = str
 			} else {
 				return &json.UnmarshalTypeError{
 					Value:  "string",
@@ -239,7 +268,7 @@ func (w *Link) UnmarshalJSON(data []byte) error {
 		case "title":
 
 			if str, ok := v.(string); ok {
-				w.Title = str
+				l.Title = str
 			} else {
 				return &json.UnmarshalTypeError{
 					Value:  "string",
@@ -252,7 +281,7 @@ func (w *Link) UnmarshalJSON(data []byte) error {
 		case "title*":
 
 			if str, ok := v.(string); ok {
-				w.TitleStar = str
+				l.TitleStar = str
 			} else {
 				return &json.UnmarshalTypeError{
 					Value:  "string",
@@ -265,7 +294,7 @@ func (w *Link) UnmarshalJSON(data []byte) error {
 		case "type":
 
 			if str, ok := v.(string); ok {
-				w.Type = str
+				l.Type = str
 			} else {
 				return &json.UnmarshalTypeError{
 					Value:  "string",
@@ -277,7 +306,7 @@ func (w *Link) UnmarshalJSON(data []byte) error {
 
 		default:
 
-			if err := w.Extend(k, v); err != nil {
+			if err := l.Extend(k, v); err != nil {
 
 				t := reflect.TypeOf(v)
 

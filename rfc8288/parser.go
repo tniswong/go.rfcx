@@ -163,17 +163,7 @@ func (p *parser) attribute() (token, string, string, bool, error) {
 func (p parser) isValidAttributeKey(t token) bool {
 
 	switch t {
-	case REL:
-		fallthrough
-	case HREFLANG:
-		fallthrough
-	case MEDIA:
-		fallthrough
-	case TITLE:
-		fallthrough
-	case TYPE:
-		fallthrough
-	case WORD:
+	case REL, HREFLANG, MEDIA, TITLE, TYPE, WORD:
 		return true
 	default:
 		return false

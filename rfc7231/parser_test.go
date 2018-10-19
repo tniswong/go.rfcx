@@ -11,11 +11,10 @@ var _ = Describe("parser", func() {
 
 	type parserExample struct {
 		in  string
-		out []MediaRange
+		out []mediaRange
 	}
 
-	DescribeTable(
-		"parse()",
+	DescribeTable("parse()",
 		func(example parserExample) {
 
 			// given
@@ -28,9 +27,9 @@ var _ = Describe("parser", func() {
 
 			// then
 			Expect(err).To(BeNil())
-			Expect(len(result.MediaRanges)).To(Equal(len(example.out)))
+			Expect(len(result.mediaRanges)).To(Equal(len(example.out)))
 
-			for i, mr := range result.MediaRanges {
+			for i, mr := range result.mediaRanges {
 				Expect(example.out[i].TypeName).To(Equal(mr.TypeName))
 				Expect(example.out[i].SubtypeName).To(Equal(mr.SubtypeName))
 				Expect(example.out[i].Params).To(Equal(mr.Params))
@@ -38,17 +37,15 @@ var _ = Describe("parser", func() {
 			}
 
 		},
-		Entry("should parse all these MediaRanges",
-			parserExample{
-				"text/*, text/html, text/html;level=1, */*",
-				[]MediaRange{
-					{TypeName: "text", SubtypeName: "*", Params: map[string]string{}, Q: 0},
-					{TypeName: "text", SubtypeName: "html", Params: map[string]string{}, Q: 0},
-					{TypeName: "text", SubtypeName: "html", Params: map[string]string{"level": "1"}, Q: 0},
-					{TypeName: "*", SubtypeName: "*", Params: map[string]string{}, Q: 0},
-				},
+		Entry("should parse all these mediaRanges", parserExample{
+			in: "text/*, text/html, text/html;level=1, */*",
+			out: []mediaRange{
+				{TypeName: "text", SubtypeName: "*", Params: map[string]string{}, Q: 0},
+				{TypeName: "text", SubtypeName: "html", Params: map[string]string{}, Q: 0},
+				{TypeName: "text", SubtypeName: "html", Params: map[string]string{"level": "1"}, Q: 0},
+				{TypeName: "*", SubtypeName: "*", Params: map[string]string{}, Q: 0},
 			},
-		),
+		}),
 	)
 
 })

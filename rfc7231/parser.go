@@ -4,12 +4,13 @@ import (
 	"errors"
 	"io"
 	"strconv"
+	"strings"
 )
 
 // Parsing Errors for Accept
 var (
 	ErrInvalidMediaRange         = errors.New("rfc7231: invalid media range")
-	ErrQMustBeNumberBetween0And1 = errors.New("rfc7231: invalid media range: Q must be a number between 0 and 1")
+	ErrQMustBeNumberBetween0And1 = errors.New("rfc7231: invalid media range: q must be a number between 0 and 1")
 )
 
 type parser struct {
@@ -61,17 +62,30 @@ func (p parser) parse() (Accept, error) {
 		return Accept{}, err
 	}
 
+	// In order to simplify common use cases, attempts at parsing "" may occur if a request does not include an Accept
+	// header. This is a valid parse, and does not ok in an error being returned.
+	//
+	// According to RFC 7231 Sec. 5.3.2:
+	//
+	//   A request without any Accept header field implies that the user agent
+	//   will accept any media type in response.
+	//
+	// Thus, we will treat attempts at parsing "" as "*/*"
+	if mediaRanges == nil {
+		mediaRanges = []mediaRange{{TypeName: "*", SubtypeName: "*"}}
+	}
+
 	var result = Accept{
-		MediaRanges: mediaRanges,
+		mediaRanges: mediaRanges,
 	}
 
 	return result, nil
 
 }
 
-func (p *parser) parseMediaRanges() ([]MediaRange, error) {
+func (p *parser) parseMediaRanges() ([]mediaRange, error) {
 
-	var result []MediaRange
+	var result []mediaRange
 
 	for {
 
@@ -80,10 +94,10 @@ func (p *parser) parseMediaRanges() ([]MediaRange, error) {
 		if err == io.EOF {
 			break
 		} else if err != nil {
-			return []MediaRange{}, err
+			return []mediaRange{}, err
 		}
 
-		mr := MediaRange{
+		mr := mediaRange{
 			TypeName:    typeName,
 			SubtypeName: subtypeName,
 		}
@@ -91,7 +105,7 @@ func (p *parser) parseMediaRanges() ([]MediaRange, error) {
 		params, err := p.params()
 
 		if err != nil {
-			return []MediaRange{}, err
+			return []mediaRange{}, err
 		}
 
 		if q, ok := params["q"]; ok {
@@ -99,7 +113,7 @@ func (p *parser) parseMediaRanges() ([]MediaRange, error) {
 			qf, err := strconv.ParseFloat(q, 64)
 
 			if err != nil {
-				return []MediaRange{}, ErrQMustBeNumberBetween0And1
+				return []mediaRange{}, ErrQMustBeNumberBetween0And1
 			}
 
 			mr.Q = qf
@@ -167,7 +181,7 @@ func (p *parser) mediaRange() (string, string, error) {
 		return "", "", ErrInvalidMediaRange
 	}
 
-	return typeName, subtypeName, nil
+	return strings.ToLower(typeName), strings.ToLower(subtypeName), nil
 
 }
 

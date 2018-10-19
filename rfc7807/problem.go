@@ -31,7 +31,7 @@ var (
 type Problem struct {
 	Type     string
 	Title    string
-	Status   int64
+	Status   int
 	Detail   string
 	Instance url.URL
 
@@ -90,6 +90,11 @@ func (p *Problem) Extend(key string, value interface{}) error {
 
 	return nil
 
+}
+
+// Error implements the error interface
+func (p Problem) Error() string {
+	return p.Title
 }
 
 // MarshalJSON Marshals JSON
@@ -164,7 +169,7 @@ func (p *Problem) UnmarshalJSON(data []byte) error {
 		case "status":
 
 			if num, ok := v.(float64); ok {
-				p.Status = int64(num)
+				p.Status = int(num)
 			} else {
 				return &json.UnmarshalTypeError{
 					Value:  "number",

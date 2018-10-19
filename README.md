@@ -2,6 +2,58 @@
 
 Go Library with implementations of RFC's that I find useful.
 
+## Run Tests
+
+    $> make deps   # only necessary once
+    $> make ensure # only necessary once
+    $> make test
+
+## Make targets
+
+1. `make clean`
+
+    Deletes leftover `.coverprofile` files.
+
+1. `make doc`
+
+    Starts a `godoc` server for this package.
+
+1. `make deps`
+
+    Install all dependent cli's for these make targets. Run this first, at least once!
+
+1. `make ensure`
+
+    Ensure all runtime dependencies are installed properly.
+
+1. `make fmt` or `make format`
+
+    Automatically format all code in this package.
+
+1. `make vet`
+
+    Run `go vet` on all code in this package, excluding dependencies. Exit 0, if successful. Exit 1, if not.
+
+1. `make lint`
+
+    Run `go lint` on all code in this package, excluding dependencies. Exit 0, if successful. Exit 1, if not.
+
+1. `make complexity`
+
+    Generate a complexity report for all code in this package, excluding dependencies. Exit 0, if reported complexity is
+    above maximum threshold. Exit 1, if not.
+
+1. `make coverage`
+
+    Generate a coverage report for all code in this package, excluding dependencies. Exit 0, if reported coverage is
+    below minimum threshold. Exit 1, if not.
+
+1. `make test`
+
+    Vet, Lint, Test with Coverage, and complexity. Exit 0, if successful. Exit 1, if there is unformatted code, if there
+    are lint failures, if there are test failures, if coverage is below the minimum threshold, or if complexity is above
+    the maximum threshold.
+
 # RFC 7231 Hypertext Transfer Protocol (HTTP/1.1): Semantics and Content
 
 https://tools.ietf.org/html/rfc7231
